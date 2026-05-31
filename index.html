@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>うんちマップ</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css"
+    />
+
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .title {
+            position: absolute;
+            z-index: 1000;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="title">
+    🚽 うんちマップ（試作）
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+const map = L.map('map');
+
+navigator.geolocation.getCurrentPosition(
+    function(position) {
+
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        map.setView([lat, lng], 16);
+
+        L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup("📍現在地")
+            .openPopup();
+        
+        L.circle([lat, lng], {
+            radius: 20
+        }).addTo(map);        
+            
+
+    },
+    function(error) {
+
+        console.log(error);
+
+        // 位置情報拒否時
+        map.setView([35.681236, 139.767125], 5);
+
+    }
+);
+
+L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution: '&copy; OpenStreetMap'
+    }
+).addTo(map);
+
+const pins = [];
+
+map.on('click', function(e){
+
+    const comment = prompt("コメントを入力");
+
+    if (!comment) return;
+
+    const marker = L.marker([
+        e.latlng.lat,
+        e.latlng.lng
+    ]).addTo(map);
+
+    marker.bindPopup(`
+        <b>🚽 うんち記録</b><br>
+        ${comment}
+    `);
+
+    pins.push({
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+        comment: comment,
+        createdAt: new Date()
+    });
+
+    console.log(pins);
+});
+
+</script>
+
+</body>
+</html>
