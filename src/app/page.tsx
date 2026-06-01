@@ -39,7 +39,7 @@ export default function HomePage() {
     }
   }, [authLoading, user, router]);
 
-  const { groups, createGroup, joinGroup } = useGroups();
+  const { groups, createGroup, joinGroup } = useGroups(user?.id);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("my-records");
 
   // 投稿モーダルの開閉
@@ -92,10 +92,13 @@ export default function HomePage() {
         onGroupChange={setSelectedGroupId}
         user={user}
         onUpdateName={updateDisplayName}
-        onCreateGroup={createGroup}
-        onJoinGroup={(code)=>{
-          const ok = joinGroup(code);
-          if(!ok) alert("招待コードが見つかりませんでした");
+        onCreateGroup={(name) => { void createGroup(name); }}
+        onJoinGroup={(code) => {
+          // joinGroup is async; handle result and notify user
+          (async () => {
+            const ok = await joinGroup(code);
+            if (!ok) alert("招待コードが見つかりませんでした");
+          })();
         }}
       />
 
