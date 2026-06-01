@@ -49,7 +49,7 @@ export default function HomePage() {
   const { center, position: currentPosition, error: geoError } = useGeolocation();
 
   // 記録データ
-  const { postRecord, getGroupRecords } = useRecords(user?.id ?? undefined);
+  const { postRecord, getGroupRecords, removeRecord } = useRecords(user?.id ?? undefined);
 
   // 現在のグループの記録
   const groupRecords = getGroupRecords(selectedGroupId);
@@ -112,6 +112,10 @@ export default function HomePage() {
           center={center}
           currentPosition={currentPosition}
           records={groupRecords}
+          currentUserId={user.id}
+          onDeleteRecord={(recordId) => {
+            removeRecord(recordId);
+          }}
         />
       </main>
 

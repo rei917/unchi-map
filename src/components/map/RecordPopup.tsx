@@ -8,6 +8,8 @@ import StarRating from "@/components/ui/StarRating";
 
 type Props = {
   record: ToiletRecord;
+  currentUserId?: string;
+  onDelete?: (recordId: string) => void;
 };
 
 /**
@@ -24,7 +26,16 @@ function formatDate(isoString: string): string {
   });
 }
 
-export default function RecordPopup({ record }: Props) {
+export default function RecordPopup({ record, currentUserId, onDelete }: Props) {
+  const handleDelete = () => {
+    if (!onDelete) return;
+    if (window.confirm("この記録を削除しますか？")) {
+      onDelete(record.id);
+    }
+  };
+
+  const canDelete = Boolean(currentUserId && record.userId === currentUserId);
+
   return (
     <div className="record-popup">
       <p className="popup-title">🚽 うんち記録</p>
@@ -46,6 +57,11 @@ export default function RecordPopup({ record }: Props) {
         <span className="popup-label">投稿日時</span>
         <span className="popup-value popup-date">{formatDate(record.createdAt)}</span>
       </div>
+      {canDelete && (
+        <button className="popup-delete-button" onClick={handleDelete}>
+          削除
+        </button>
+      )}
     </div>
   );
 }

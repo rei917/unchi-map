@@ -4,11 +4,8 @@
 // ============================================================
 
 "use client";
-import MarkerClusterGroup from "react-leaflet-cluster";
 import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
-// npm i react-leaflet-cluster
-// import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import { ToiletRecord, LatLng } from "@/types";
 import RecordPopup from "./RecordPopup";
@@ -66,6 +63,8 @@ type Props = {
   center: LatLng;
   currentPosition: LatLng | null;
   records: ToiletRecord[];
+  currentUserId?: string;
+  onDeleteRecord: (recordId: string) => void;
 };
 
 // ============================================================
@@ -160,19 +159,20 @@ export default function MapView({ center, currentPosition, records }: Props) {
       )}
 
       {/* 記録ピン */}
-      {/* Cluster対応時は MarkerClusterGroup で囲む */}
-      <MarkerClusterGroup>
-        {records.map((record) => {
-          const pos = offsetMap[record.id] ?? { lat: record.lat, lng: record.lng };
-          return (
-            <Marker key={record.id} position={[pos.lat, pos.lng]} icon={toiletIcon}>
-              <Popup maxWidth={240} className="record-popup-wrapper">
-                <RecordPopup record={record} />
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MarkerClusterGroup>
+      {records.map((record) => {
+        const pos = offsetMap[record.id] ?? { lat: record.lat, lng: record.lng };
+        return (
+          <Marker key={record.id} position={[pos.lat, pos.lng]} icon={toiletIcon}>
+            <Popup maxWidth={240} className="record-popup-wrapper">
+              <RecordPopup
+                record={record}
+                currentUserId={currentUserId}
+                onDelete={onDeleteRecord}
+              />
+            </Popup>
+          </Marker>
+        );
+      })}
     </MapContainer>
     
   );

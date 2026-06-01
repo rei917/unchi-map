@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ToiletRecord } from "@/types";
-import { loadRecords, addRecord } from "@/lib/storage";
+import { loadRecords, addRecord, deleteRecord } from "@/lib/storage";
 
 type NewRecordInput = {
   groupId: string;
@@ -54,6 +54,11 @@ export function useRecords(currentUserId?: string) {
     []
   );
 
+  const removeRecord = useCallback((recordId: string) => {
+    const updated = deleteRecord(recordId);
+    setRecords(updated);
+  }, []);
+
   /**
    * 指定グループの記録のみ返す
    */
@@ -69,5 +74,5 @@ export function useRecords(currentUserId?: string) {
     [records, currentUserId]
   );
 
-  return { records, postRecord, getGroupRecords };
+  return { records, postRecord, getGroupRecords, removeRecord };
 }

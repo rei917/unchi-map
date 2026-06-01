@@ -332,14 +332,18 @@ body {
 
 /* ── 投稿ボタン ───────────────────────────────────────── */
 .post-button-wrapper {
-  position: relative;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1000;
-  padding: 12px 20px;
+  padding: 12px 20px calc(16px + env(safe-area-inset-bottom));
   background: linear-gradient(to top, var(--color-bg) 60%, transparent);
-  flex-shrink: 0;
 }
 
 .post-button {
+  width: 100%;
+  font-family: var(--font-display);
   width: 100%;
   font-family: var(--font-display);
   font-size: 1.05rem;
@@ -387,11 +391,14 @@ body {
 .modal-content {
   width: 100%;
   max-width: 480px;
+  max-height: calc(100vh - 40px);
   background: var(--color-surface);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: var(--shadow-lg);
   animation: modal-slide-up 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes modal-slide-up {
@@ -449,6 +456,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow: auto;
 }
 
 .form-group {
@@ -491,6 +499,8 @@ body {
   gap: 10px;
   padding: 14px 20px 20px;
   border-top: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
 }
 
 /* ── ボタン ───────────────────────────────────────────── */
@@ -666,12 +676,15 @@ body {
   top: calc(100% + 8px);
   right: 0;
   width: 240px;
+  max-height: calc(100vh - 120px);
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 2000;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
   animation: dropdown-in 0.15s ease;
 }
 
@@ -821,6 +834,29 @@ body {
   border: none;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.popup-delete-button {
+  width: 100%;
+  margin-top: 12px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--color-danger);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.popup-delete-button:hover {
+  background: #b91c1c;
+}
+
+.popup-delete-button:active {
+  transform: scale(0.98);
 }
 
 .signout-btn:hover {

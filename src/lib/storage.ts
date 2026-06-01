@@ -42,3 +42,13 @@ export function addRecord(record: ToiletRecord): ToiletRecord[] {
   saveRecords(updated);
   return updated;
 }
+
+/**
+ * 指定IDの記録を削除して保存する
+ */
+export function deleteRecord(recordId: string): ToiletRecord[] {
+  const existing = loadRecords();
+  const updated = existing.filter((record) => record.id !== recordId);
+  saveRecords(updated);
+  return updated;
+}
