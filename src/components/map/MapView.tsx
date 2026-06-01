@@ -9,7 +9,6 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-le
 import L from "leaflet";
 import { ToiletRecord, LatLng } from "@/types";
 import RecordPopup from "./RecordPopup";
-import { supabase } from "@/lib/supabase";
 
 // ============================================================
 // Leaflet デフォルトアイコンのパス修正
@@ -52,15 +51,6 @@ function createCurrentLocationIcon() {
 function MapCenterController({ center }: { center: LatLng }) {
   const map = useMap();
   useEffect(() => {
-    async function testSupabase() {
-    const { data, error } = await supabase
-      .from("records")
-      .select("*");
-
-    console.log("data:", data);
-    console.log("error:", error);
-  }
-  testSupabase();
     map.setView([center.lat, center.lng], map.getZoom());
   }, [center, map]);
   return null;

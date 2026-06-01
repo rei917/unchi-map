@@ -27,6 +27,18 @@ export type ToiletRecord = {
   createdAt: string;
 };
 
+export type SupabaseRecord = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  group_id: string;
+  lat: number;
+  lng: number;
+  rating: number;
+  memo: string;
+  created_at: string;
+};
+
 /**
  * グループの型
  */

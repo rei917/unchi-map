@@ -20,22 +20,25 @@ type NewRecordInput = {
 
 /**
  * 記録データを管理するカスタムフック
- * localStorage との同期も担う
  */
 export function useRecords(currentUserId?: string) {
   const [records, setRecords] = useState<ToiletRecord[]>([]);
 
-  // マウント時に localStorage から読み込む
+  // マウント時に Supabase から読み込む
   useEffect(() => {
-    const loaded = loadRecords();
-    setRecords(loaded);
+    loadRecords()
+      .then((loaded) => setRecords(loaded))
+      .catch((error) => {
+        console.error("記録の読み込みに失敗しました:", error);
+        setRecords([]);
+      });
   }, []);
 
   /**
    * 新規記録を追加する
    */
   const postRecord = useCallback(
-    (input: NewRecordInput): ToiletRecord => {
+    async (input: NewRecordInput): Promise<ToiletRecord | null> => {
       const newRecord: ToiletRecord = {
         id: uuidv4(),
         groupId: input.groupId,
@@ -47,16 +50,26 @@ export function useRecords(currentUserId?: string) {
         comment: input.comment,
         createdAt: new Date().toISOString(),
       };
-      const updated = addRecord(newRecord);
-      setRecords(updated);
-      return newRecord;
+
+      try {
+        const inserted = await addRecord(newRecord);
+        setRecords((prev) => [...prev, inserted]);
+        return inserted;
+      } catch (error) {
+        console.error("記録の追加に失敗しました:", error);
+        return null;
+      }
     },
     []
   );
 
-  const removeRecord = useCallback((recordId: string) => {
-    const updated = deleteRecord(recordId);
-    setRecords(updated);
+  const removeRecord = useCallback(async (recordId: string) => {
+    try {
+      await deleteRecord(recordId);
+      setRecords((prev) => prev.filter((record) => record.id !== recordId));
+    } catch (error) {
+      console.error("記録の削除に失敗しました:", error);
+    }
   }, []);
 
   /**

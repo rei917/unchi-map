@@ -1,54 +1,77 @@
 // ============================================================
 // lib/storage.ts
-// localStorage への読み書きユーティリティ
+// Supabase への読み書きユーティリティ
 // ============================================================
 
-import { ToiletRecord } from "@/types";
-import { STORAGE_KEY } from "@/data/mockData";
+import { ToiletRecord, SupabaseRecord } from "@/types";
+import { supabase } from "@/lib/supabase";
+
+function fromSupabaseRecord(record: SupabaseRecord): ToiletRecord {
+  return {
+    id: record.id,
+    userId: record.user_id,
+    groupId: record.group_id,
+    lat: record.lat,
+    lng: record.lng,
+    rating: record.rating,
+    comment: record.memo,
+    createdAt: record.created_at,
+    userName: record.user_name,
+  };
+}
+
+function toSupabaseRecord(record: ToiletRecord) {
+  return {
+    id: record.id,
+    user_id: record.userId,
+    user_name: record.userName,
+    group_id: record.groupId,
+    lat: record.lat,
+    lng: record.lng,
+    rating: record.rating,
+    memo: record.comment,
+    created_at: record.createdAt,
+  };
+}
 
 /**
- * 全記録を localStorage から読み込む
+ * 全記録を Supabase から読み込む
  */
-export function loadRecords(): ToiletRecord[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as ToiletRecord[];
-  } catch (e) {
-    console.error("記録の読み込みに失敗しました:", e);
+export async function loadRecords(): Promise<ToiletRecord[]> {
+  const { data, error } = await supabase.from("records").select("*");
+  if (error) {
+    console.error("Supabase からの記録読み込みに失敗しました:", error);
     return [];
   }
+  if (!data) return [];
+  return (data as SupabaseRecord[]).map(fromSupabaseRecord);
 }
 
 /**
- * 全記録を localStorage に保存する
+ * 新しい記録を Supabase に追加する
  */
-export function saveRecords(records: ToiletRecord[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-  } catch (e) {
-    console.error("記録の保存に失敗しました:", e);
+export async function addRecord(record: ToiletRecord): Promise<ToiletRecord> {
+  const { data, error } = await supabase
+    .from("records")
+    .insert([toSupabaseRecord(record)])
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    console.error("Supabase への記録追加に失敗しました:", error);
+    throw new Error(error?.message || "記録の追加に失敗しました");
   }
+
+  return fromSupabaseRecord(data);
 }
 
 /**
- * 新しい記録を追加して保存する
+ * 指定IDの記録を Supabase から削除する
  */
-export function addRecord(record: ToiletRecord): ToiletRecord[] {
-  const existing = loadRecords();
-  const updated = [...existing, record];
-  saveRecords(updated);
-  return updated;
-}
-
-/**
- * 指定IDの記録を削除して保存する
- */
-export function deleteRecord(recordId: string): ToiletRecord[] {
-  const existing = loadRecords();
-  const updated = existing.filter((record) => record.id !== recordId);
-  saveRecords(updated);
-  return updated;
+export async function deleteRecord(recordId: string): Promise<void> {
+  const { error } = await supabase.from("records").delete().eq("id", recordId);
+  if (error) {
+    console.error("Supabase からの記録削除に失敗しました:", error);
+    throw new Error(error.message);
+  }
 }
