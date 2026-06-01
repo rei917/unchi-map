@@ -31,7 +31,8 @@ export default function HomePage() {
   const router = useRouter();
 
   // 認証状態
-  const { user, isLoading: authLoading, updateDisplayName } = useCurrentUser();
+  const { user, isLoading: authLoading, updateDisplayName } 
+  = useCurrentUser();
   const toast = useToast();
 
   // 未ログインならログインページへ
@@ -63,7 +64,8 @@ export default function HomePage() {
     (rating: number, comment: string) => {
       if (!user) return;
       postRecord({
-        groupId: selectedGroupId,
+        // Convert my-records to empty string to store as personal record
+        groupId: selectedGroupId === "my-records" ? "" : selectedGroupId,
         userId: user.id,
         userName: user.displayName,
         lat: currentPosition?.lat ?? center.lat,
