@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Group } from "@/types";
-import { createGroup as dbCreateGroup, joinGroupByInviteCode, getUserGroups } from "@/lib/storage";
+import { createGroup as dbCreateGroup, joinGroupByInviteCode, getUserGroups, leaveGroup as dbLeaveGroup } from "@/lib/storage";
 
 const personal: Group = {
   id: "my-records",
@@ -53,5 +53,20 @@ export function useGroups(currentUserId?: string) {
     }
   };
 
-  return { groups, createGroup, joinGroup };
+  const leaveGroup = async (groupId: string): Promise<boolean> => {
+    if (!currentUserId) return false;
+    try {
+      const ok = await dbLeaveGroup(currentUserId, groupId);
+      if (ok) {
+        const userGroups = await getUserGroups(currentUserId);
+        setGroups([personal, ...userGroups]);
+      }
+      return ok;
+    } catch (e) {
+      console.error("グループ脱退に失敗しました:", e);
+      return false;
+    }
+  };
+
+  return { groups, createGroup, joinGroup, leaveGroup };
 }

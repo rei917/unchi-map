@@ -8,6 +8,7 @@ import "./globals.css";
 // Leaflet CSS をグローバルで読み込む
 import "leaflet/dist/leaflet.css";
 import AuthSessionProvider from "@/components/providers/SessionProvider";
+import ToastProvider from "@/components/ui/ToastProvider";
 
 export const metadata: Metadata = {
   title: "🚽 うんちマップ β",
@@ -30,7 +31,9 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <AuthSessionProvider>{children}</AuthSessionProvider>
+        <AuthSessionProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

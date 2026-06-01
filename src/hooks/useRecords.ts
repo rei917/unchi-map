@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ToiletRecord } from "@/types";
 import { loadRecords, addRecord, deleteRecord } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 
 type NewRecordInput = {
   groupId: string;
@@ -21,7 +22,7 @@ type NewRecordInput = {
 /**
  * 記録データを管理するカスタムフック
  */
-export function useRecords(currentUserId?: string) {
+export function useRecords(currentUserId?: string, selectedGroupId?: string) {
   const [records, setRecords] = useState<ToiletRecord[]>([]);
 
   // マウント時に Supabase から読み込む
@@ -34,6 +35,39 @@ export function useRecords(currentUserId?: string) {
       });
   }, []);
 
+  // Realtime subscription: refetch when records table changes for the current subscription filter
+  useEffect(() => {
+    // Determine filter: if my-records, subscribe by user_id, otherwise by group_id
+    let filter = null;
+    if (selectedGroupId === "my-records") {
+      if (!currentUserId) return;
+      filter = `user_id=eq.${currentUserId}`;
+    } else {
+      if (!selectedGroupId) return;
+      filter = `group_id=eq.${selectedGroupId}`;
+    }
+
+    const channel = supabase
+      .channel(`records:${filter}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "records", filter },
+        async () => {
+          const loaded = await loadRecords();
+          setRecords(loaded);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, [selectedGroupId, currentUserId]);
+
   /**
    * 新規記録を追加する
    */
@@ -41,7 +75,8 @@ export function useRecords(currentUserId?: string) {
     async (input: NewRecordInput): Promise<ToiletRecord | null> => {
       const newRecord: ToiletRecord = {
         id: uuidv4(),
-        groupId: input.groupId,
+        // don't store the virtual group id for personal view
+        groupId: input.groupId === "my-records" ? "" : input.groupId,
         userId: input.userId,
         userName: input.userName,
         lat: input.lat,

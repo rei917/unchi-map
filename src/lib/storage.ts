@@ -187,3 +187,15 @@ export async function getUserGroups(userId: string): Promise<Group[]> {
 
   return groupsData.map((g: any) => ({ id: g.id, name: g.name, inviteCode: g.invite_code } as Group));
 }
+
+/**
+ * Leave a group (remove membership)
+ */
+export async function leaveGroup(userId: string, groupId: string): Promise<boolean> {
+  const { error } = await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
+  if (error) {
+    console.error("グループ脱退に失敗しました:", error);
+    return false;
+  }
+  return true;
+}

@@ -18,9 +18,10 @@ type Props = {
   onUpdateName: (name: string) => void;
   onCreateGroup: (name: string)=>void;
   onJoinGroup: (code: string)=>void;
+  onLeaveGroup?: (groupId: string)=>void;
 };
 
-export default function Header({ groups, selectedGroupId, onGroupChange, user, onUpdateName, onCreateGroup, onJoinGroup }: Props) {
+export default function Header({ groups, selectedGroupId, onGroupChange, user, onUpdateName, onCreateGroup, onJoinGroup, onLeaveGroup }: Props) {
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
   return (
@@ -60,6 +61,15 @@ export default function Header({ groups, selectedGroupId, onGroupChange, user, o
         }}>
           招待コードで参加
         </button>
+        {selectedGroupId !== "my-records" && !selectedGroup?.isPersonal && onLeaveGroup && (
+          <button onClick={() => {
+            const ok = confirm("このグループから抜けますか？\n\nマイ記録は残ります。");
+            if (!ok) return;
+            onLeaveGroup(selectedGroupId);
+          }}>
+            グループから抜ける
+          </button>
+        )}
       </div>
     </header>
   );
