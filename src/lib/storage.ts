@@ -192,9 +192,18 @@ export async function getUserGroups(userId: string): Promise<Group[]> {
  * Leave a group (remove membership)
  */
 export async function leaveGroup(userId: string, groupId: string): Promise<boolean> {
-  const { error } = await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
+  const { data, error } = await supabase
+    .from("group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .select("id");
   if (error) {
     console.error("グループ脱退に失敗しました:", error);
+    return false;
+  }
+  if (!data || data.length === 0) {
+    console.error("グループ脱退に失敗しました: 削除対象が見つかりませんでした", { userId, groupId });
     return false;
   }
   return true;

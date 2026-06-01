@@ -25,20 +25,24 @@ type NewRecordInput = {
 export function useRecords(currentUserId?: string, selectedGroupId?: string) {
   const [records, setRecords] = useState<ToiletRecord[]>([]);
 
-  // マウント時に Supabase から読み込む
-  useEffect(() => {
-    loadRecords()
-      .then((loaded) => setRecords(loaded))
-      .catch((error) => {
-        console.error("記録の読み込みに失敗しました:", error);
-        setRecords([]);
-      });
+  const fetchRecords = useCallback(async () => {
+    try {
+      const loaded = await loadRecords();
+      setRecords(loaded);
+    } catch (error) {
+      console.error("記録の読み込みに失敗しました:", error);
+      setRecords([]);
+    }
   }, []);
+
+  // マウント時と selectedGroupId/currentUserId 変更時の読み込み
+  useEffect(() => {
+    void fetchRecords();
+  }, [fetchRecords, selectedGroupId, currentUserId]);
 
   // Realtime subscription: refetch when records table changes for the current subscription filter
   useEffect(() => {
-    // Determine filter: if my-records, subscribe by user_id, otherwise by group_id
-    let filter = null;
+    let filter: string | null = null;
     if (selectedGroupId === "my-records") {
       if (!currentUserId) return;
       filter = `user_id=eq.${currentUserId}`;
@@ -47,26 +51,26 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
       filter = `group_id=eq.${selectedGroupId}`;
     }
 
-    const channel = supabase
-      .channel(`records:${filter}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "records", filter },
-        async () => {
-          const loaded = await loadRecords();
-          setRecords(loaded);
-        }
-      )
-      .subscribe();
+    const channel = supabase.channel(`records:${filter}`);
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "records", filter },
+      async () => {
+        await fetchRecords();
+      }
+    );
+
+    void channel.subscribe();
 
     return () => {
+      void channel.unsubscribe();
       try {
         supabase.removeChannel(channel);
       } catch (e) {
         // ignore
       }
     };
-  }, [selectedGroupId, currentUserId]);
+  }, [selectedGroupId, currentUserId, fetchRecords]);
 
   /**
    * 新規記録を追加する
@@ -75,8 +79,7 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
     async (input: NewRecordInput): Promise<ToiletRecord | null> => {
       const newRecord: ToiletRecord = {
         id: uuidv4(),
-        // don't store the virtual group id for personal view
-        groupId: input.groupId === "my-records" ? "" : input.groupId,
+        groupId: input.groupId,
         userId: input.userId,
         userName: input.userName,
         lat: input.lat,
