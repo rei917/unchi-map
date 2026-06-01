@@ -70,7 +70,7 @@ type Props = {
 // ============================================================
 // MapView 本体
 // ============================================================
-export default function MapView({ center, currentPosition, records }: Props) {
+export default function MapView({ center, currentPosition, records, currentUserId, onDeleteRecord }: Props) {
   const iconsInitialized = useRef(false);
 
   useEffect(() => {
