@@ -32,6 +32,7 @@ export default function HomePage() {
 
   // 認証状態
   const { user, isLoading: authLoading, updateDisplayName } = useCurrentUser();
+  const toast = useToast();
 
   // 未ログインならログインページへ
   useEffect(() => {
@@ -113,16 +114,6 @@ export default function HomePage() {
               toast.showToast("グループを脱退しました", "success");
             } else {
               toast.showToast("グループ脱退に失敗しました", "error");
-            }
-          })();
-        }}
-        onLeaveGroup={(groupId) => {
-          (async () => {
-            const ok = await leaveGroup(groupId);
-            if (ok) {
-              setSelectedGroupId("my-records");
-            } else {
-              alert("グループ脱退に失敗しました");
             }
           })();
         }}
