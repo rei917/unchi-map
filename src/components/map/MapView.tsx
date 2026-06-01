@@ -56,6 +56,17 @@ function MapCenterController({ center }: { center: LatLng }) {
   return null;
 }
 
+function MapReadyController({ onReady }: { onReady: (map: L.Map) => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    onReady(map);
+    setTimeout(() => map.invalidateSize(), 0);
+  }, [map, onReady]);
+
+  return null;
+}
+
 // ============================================================
 // Props
 // ============================================================
@@ -72,6 +83,7 @@ type Props = {
 // ============================================================
 export default function MapView({ center, currentPosition, records, currentUserId, onDeleteRecord }: Props) {
   const iconsInitialized = useRef(false);
+  const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     if (!iconsInitialized.current) {
@@ -79,6 +91,12 @@ export default function MapView({ center, currentPosition, records, currentUserI
       iconsInitialized.current = true;
     }
   }, []);
+
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.invalidateSize();
+    }
+  }, [records, currentPosition, center]);
 
   const toiletIcon = createToiletIcon();
   const currentLocationIcon = createCurrentLocationIcon();
@@ -134,6 +152,7 @@ export default function MapView({ center, currentPosition, records, currentUserI
       className="map-container"
       zoomControl={true}
     >
+      <MapReadyController onReady={(map) => { mapRef.current = map; }} />
       {/* OpenStreetMap タイル */}
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
