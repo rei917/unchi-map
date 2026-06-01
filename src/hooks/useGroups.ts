@@ -38,18 +38,22 @@ export function useGroups(currentUserId?: string) {
     }
   };
 
-  const joinGroup = async (inviteCode: string): Promise<boolean> => {
-    if (!currentUserId) return false;
+  /**
+   * 招待コードでグループに参加し、グループIDを返す
+   * グループ参加に成功すると、参加したグループのIDを返す
+   */
+  const joinGroup = async (inviteCode: string): Promise<string | null> => {
+    if (!currentUserId) return null;
     try {
-      const ok = await joinGroupByInviteCode(inviteCode, currentUserId);
-      if (ok) {
+      const groupId = await joinGroupByInviteCode(inviteCode, currentUserId);
+      if (groupId) {
         const userGroups = await getUserGroups(currentUserId);
         setGroups([personal, ...userGroups]);
       }
-      return ok;
+      return groupId;
     } catch (e) {
       console.error("招待コード参加に失敗しました:", e);
-      return false;
+      return null;
     }
   };
 

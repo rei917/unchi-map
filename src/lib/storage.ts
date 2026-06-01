@@ -124,19 +124,19 @@ export async function createGroup(name: string, createdBy: string, displayName?:
 }
 
 /**
- * Join a group by invite code (case-insensitive). Returns true if joined or already member.
+ * Join a group by invite code (case-insensitive). Returns group ID if joined or already member, null if failed.
  */
-export async function joinGroupByInviteCode(inviteCode: string, userId: string, displayName?: string): Promise<boolean> {
+export async function joinGroupByInviteCode(inviteCode: string, userId: string, displayName?: string): Promise<string | null> {
   const code = inviteCode.trim();
-  if (!code) return false;
+  if (!code) return null;
 
   // find group (case-insensitive)
   const { data: groupsData, error: gErr } = await supabase.from("groups").select("*").ilike("invite_code", code);
   if (gErr) {
     console.error("招待コード検索に失敗しました:", gErr);
-    return false;
+    return null;
   }
-  if (!groupsData || groupsData.length === 0) return false;
+  if (!groupsData || groupsData.length === 0) return null;
   const group = groupsData[0];
 
   // check existing membership
@@ -147,7 +147,7 @@ export async function joinGroupByInviteCode(inviteCode: string, userId: string, 
     .eq("user_id", userId)
     .limit(1);
   if (exErr) console.error("メンバー検索エラー:", exErr);
-  if (existing && existing.length > 0) return true;
+  if (existing && existing.length > 0) return group.id; // 既に参加済みの場合もグループIDを返す
 
   const memberRow = {
     id: crypto.randomUUID(),
@@ -160,9 +160,9 @@ export async function joinGroupByInviteCode(inviteCode: string, userId: string, 
   const { error: insertErr } = await supabase.from("group_members").insert([memberRow]);
   if (insertErr) {
     console.error("メンバー追加に失敗しました:", insertErr);
-    return false;
+    return null;
   }
-  return true;
+  return group.id; // グループIDを返す
 }
 
 /**
@@ -219,4 +219,55 @@ export async function leaveGroup(userId: string, groupId: string): Promise<boole
   
   console.log("グループ脱退完了", { userId, groupId });
   return true;
+}
+
+/**
+ * ユーザーの既存マイ記録をグループに共有する（record_groups テーブルに追加）
+ * 新規投稿時は record_groups テーブルを使わず、既存マイ記録の共有のみに使用
+ */
+export async function shareRecordsToGroup(userId: string, groupId: string): Promise<boolean> {
+  try {
+    // ユーザーのマイ記録（group_id=""）を取得
+    const { data: myRecords, error: fetchErr } = await supabase
+      .from("records")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("group_id", "");
+
+    if (fetchErr) {
+      console.error("マイ記録の取得に失敗しました:", fetchErr);
+      return false;
+    }
+
+    if (!myRecords || myRecords.length === 0) {
+      console.log("共有するマイ記録がありません");
+      return true; // 記録がない場合は成功とする
+    }
+
+    // record_groups テーブルに追加（既に存在するものは UNIQUE 制約で挿入されない）
+    const recordGroupEntries = myRecords.map((r) => ({
+      id: crypto.randomUUID(),
+      record_id: r.id,
+      group_id: groupId,
+      created_at: new Date().toISOString(),
+    }));
+
+    const { error: insertErr } = await supabase.from("record_groups").insert(recordGroupEntries);
+
+    if (insertErr) {
+      // UNIQUE 制約エラーの場合も成功とする（既に関連付けされている）
+      if (insertErr.code === "23505") {
+        console.log("一部のマイ記録は既に共有済みです");
+        return true;
+      }
+      console.error("記録の共有に失敗しました:", insertErr);
+      return false;
+    }
+
+    console.log("マイ記録をグループに共有しました", { userId, groupId, count: myRecords.length });
+    return true;
+  } catch (error) {
+    console.error("マイ記録共有処理でエラーが発生しました:", error);
+    return false;
+  }
 }

@@ -16,6 +16,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useRecords } from "@/hooks/useRecords";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useGroups } from "@/hooks/useGroups";
+import { shareRecordsToGroup } from "@/lib/storage";
 
 // Leaflet は SSR 非対応なので動的インポートで回避
 const MapView = dynamic(() => import("@/components/map/MapView"), {
@@ -100,11 +101,21 @@ export default function HomePage() {
         onJoinGroup={(code) => {
           // joinGroup is async; handle result and notify user
           (async () => {
-            const ok = await joinGroup(code);
-            if (!ok) {
+            const groupId = await joinGroup(code);
+            if (!groupId) {
               toast.showToast("招待コードが見つかりませんでした", "error");
             } else {
               toast.showToast("グループに参加しました", "success");
+              
+              // グループ参加後、過去のマイ記録を共有するか確認
+              if (user && window.confirm("これまでのマイ記録もこのグループに共有しますか？")) {
+                const shared = await shareRecordsToGroup(user.id, groupId);
+                if (shared) {
+                  toast.showToast("マイ記録をグループに共有しました", "success");
+                } else {
+                  toast.showToast("マイ記録の共有に失敗しました", "error");
+                }
+              }
             }
           })();
         }}
