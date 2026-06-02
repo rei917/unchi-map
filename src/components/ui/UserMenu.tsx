@@ -58,6 +58,7 @@ export default function UserMenu({ user, onUpdateName }: Props) {
   const handleSignOut = () => {
     if (user.isGuest) {
       localStorage.removeItem(GUEST_USER_KEY);
+      localStorage.removeItem(`unchi-map-display-name:${user.id}`);
       localStorage.removeItem("unchi-map-display-name");
       window.location.href = "/login";
       return;

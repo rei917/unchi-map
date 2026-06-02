@@ -1,13 +1,13 @@
 // ============================================================
 // hooks/useCurrentUser.ts
 // 現在のユーザー情報を管理するフック
-// Google セッション + ゲストユーザー + localStorage 表示名を統合
+// Google セッション + ゲストユーザー + 表示名を統合
 // ============================================================
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
-const DISPLAY_NAME_KEY = "unchi-map-display-name";
+const DISPLAY_NAME_KEY_PREFIX = "unchi-map-display-name";
 export const GUEST_USER_KEY = "unchi-map-guest-user";
 
 export type CurrentUser = {
@@ -52,6 +52,20 @@ function readGuestUser(): StoredGuestUser | null {
   }
 }
 
+function getDisplayNameKey(userId: string) {
+  return `${DISPLAY_NAME_KEY_PREFIX}:${userId}`;
+}
+
+function readDisplayName(userId: string): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(getDisplayNameKey(userId)) ?? "";
+}
+
+function writeDisplayName(userId: string, name: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(getDisplayNameKey(userId), name);
+}
+
 /**
  * 現在のログインユーザーを返すフック。
  * GoogleログインがあればGoogleを優先し、未ログインならゲストユーザーを返す。
@@ -60,48 +74,56 @@ export function useCurrentUser(): UseCurrentUserReturn {
   const { data: session, status } = useSession();
   const [displayName, setDisplayName] = useState<string>("");
   const [guestUser, setGuestUser] = useState<StoredGuestUser | null>(null);
+  const [localLoaded, setLocalLoaded] = useState(false);
 
-  // localStorage から保存済みの表示名・ゲストユーザーを読み込む
+  const googleUserId = useMemo(() => {
+    if (!session?.user) return null;
+    return session.user.id ?? session.user.email ?? "unknown";
+  }, [session?.user]);
+
+  // localStorage からゲストユーザーを読み込む。
+  // これが終わる前に「未ログイン」と判定すると、ゲスト参加直後に /login へ戻される。
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const saved = localStorage.getItem(DISPLAY_NAME_KEY);
-    if (saved) setDisplayName(saved);
     setGuestUser(readGuestUser());
+    setLocalLoaded(true);
   }, []);
 
-  // Google ログイン後、表示名がまだ未設定なら Google 名を初期値にセット
+  // Googleログイン時はGoogleユーザー専用の表示名を読む。
+  // ゲスト名がGoogleログイン後に流用されないよう、ユーザーID別キーに保存する。
   useEffect(() => {
-    if (!session?.user?.name) return;
-    if (typeof window === "undefined") return;
-    const saved = localStorage.getItem(DISPLAY_NAME_KEY);
-    if (!saved) {
-      setDisplayName(session.user.name);
-      localStorage.setItem(DISPLAY_NAME_KEY, session.user.name);
-    }
-  }, [session?.user?.name]);
+    if (!googleUserId) return;
+    const saved = readDisplayName(googleUserId);
+    setDisplayName(saved);
+  }, [googleUserId]);
+
+  const currentUserId = googleUserId ?? guestUser?.id ?? null;
 
   const updateDisplayName = useCallback((name: string) => {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || !currentUserId) return;
+
     setDisplayName(trimmed);
-    localStorage.setItem(DISPLAY_NAME_KEY, trimmed);
+    writeDisplayName(currentUserId, trimmed);
 
     // ゲスト利用中はゲスト情報にも反映する
-    const guest = readGuestUser();
-    if (guest) {
-      const updated = { ...guest, displayName: trimmed };
-      localStorage.setItem(GUEST_USER_KEY, JSON.stringify(updated));
-      setGuestUser(updated);
+    if (!googleUserId) {
+      const guest = readGuestUser();
+      if (guest) {
+        const updated = { ...guest, displayName: trimmed };
+        localStorage.setItem(GUEST_USER_KEY, JSON.stringify(updated));
+        setGuestUser(updated);
+      }
     }
-  }, []);
+  }, [currentUserId, googleUserId]);
 
-  if (status === "loading") {
+  if (status === "loading" || !localLoaded) {
     return { user: null, isLoading: true, updateDisplayName };
   }
 
-  if (session?.user) {
+  if (session?.user && googleUserId) {
     const user: CurrentUser = {
-      id: session.user.id ?? session.user.email ?? "unknown",
+      id: googleUserId,
       displayName: displayName || session.user.name || "名無しさん",
       googleName: session.user.name ?? null,
       image: session.user.image ?? null,
@@ -113,9 +135,10 @@ export function useCurrentUser(): UseCurrentUserReturn {
   }
 
   if (guestUser) {
+    const guestDisplayName = displayName || readDisplayName(guestUser.id) || guestUser.displayName;
     const user: CurrentUser = {
       id: guestUser.id,
-      displayName: displayName || guestUser.displayName,
+      displayName: guestDisplayName,
       googleName: null,
       image: null,
       email: null,

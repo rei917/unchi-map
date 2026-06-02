@@ -23,7 +23,6 @@ function createGuestUser(displayName: string) {
   };
 
   localStorage.setItem(GUEST_USER_KEY, JSON.stringify(guestUser));
-  localStorage.setItem("unchi-map-display-name", displayName);
 }
 
 function LoginContent() {
