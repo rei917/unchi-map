@@ -140,14 +140,18 @@ export async function assignRecordToGroup(recordId: string, groupId: string): Pr
     created_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase.from("record_groups").insert([payload]);
+  const { error } = await supabase
+    .from("record_groups")
+    .upsert([payload], {
+      onConflict: "record_id,group_id",
+      ignoreDuplicates: true,
+    });
+
   if (error) {
-    if ((error as any).code === "23505") {
-      return true;
-    }
     console.error("record_groups への追加に失敗しました:", error);
     return false;
   }
+
   return true;
 }
 
@@ -328,7 +332,9 @@ export async function shareRecordsToGroup(userId: string, groupId: string): Prom
       return true; // 記録がない場合は成功とする
     }
 
-    // record_groups テーブルに追加（既に存在するものは UNIQUE 制約で挿入されない）
+    // record_groups テーブルに追加する。
+    // insert だと既存共有が1件でもある場合に全体が失敗する可能性があるため、
+    // record_id + group_id の重複は無視する upsert にする。
     const recordGroupEntries = myRecords.map((r) => ({
       id: crypto.randomUUID(),
       record_id: r.id,
@@ -336,14 +342,14 @@ export async function shareRecordsToGroup(userId: string, groupId: string): Prom
       created_at: new Date().toISOString(),
     }));
 
-    const { error: insertErr } = await supabase.from("record_groups").insert(recordGroupEntries);
+    const { error: insertErr } = await supabase
+      .from("record_groups")
+      .upsert(recordGroupEntries, {
+        onConflict: "record_id,group_id",
+        ignoreDuplicates: true,
+      });
 
     if (insertErr) {
-      // UNIQUE 制約エラーの場合も成功とする（既に関連付けされている）
-      if (insertErr.code === "23505") {
-        console.log("一部のマイ記録は既に共有済みです");
-        return true;
-      }
       console.error("記録の共有に失敗しました:", insertErr);
       return false;
     }
