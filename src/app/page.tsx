@@ -46,6 +46,7 @@ export default function HomePage() {
 
   const { groups, createGroup, joinGroup, leaveGroup } = useGroups(user?.id, user?.displayName, user?.image);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("my-records");
+  const [memberProfileVersion, setMemberProfileVersion] = useState(0);
   const { members, isLoading: membersLoading, refetch: refetchMembers } = useGroupMembers(selectedGroupId);
 
   // 投稿モーダルの開閉
@@ -97,16 +98,30 @@ export default function HomePage() {
   };
 
   const handleUpdateImage = (imageUrl: string | null) => {
+    // まずヘッダーの自分アイコンを即時更新
     updateImage(imageUrl);
-    void updateUserMembershipProfile(user.id, user.displayName, imageUrl).then(() => {
-      void refetchMembers();
-    });
+
+    // 次に、全所属グループのメンバー情報へ画像URLを反映し、
+    // 表示中のメンバー一覧を再取得する。
+    void (async () => {
+      const ok = await updateUserMembershipProfile(user.id, user.displayName, imageUrl);
+      if (!ok) {
+        toast.showToast("メンバー画像の更新に失敗しました", "error");
+        return;
+      }
+
+      await refetchMembers();
+      // Header内の「現在ユーザーは user.image を優先する」ロジックを確実に再評価させる
+      setMemberProfileVersion((v) => v + 1);
+      toast.showToast(imageUrl ? "画像を更新しました" : "画像をリセットしました", "success");
+    })();
   };
 
   return (
     <div className="app-container">
       {/* ヘッダー */}
       <Header
+        key={`header-${user.id}-${user.image ?? "none"}-${memberProfileVersion}`}
         groups={groups}
         selectedGroupId={selectedGroupId}
         onGroupChange={setSelectedGroupId}

@@ -512,23 +512,36 @@ export async function updateUserMembershipProfile(userId: string, displayName: s
     avatar_url: avatarUrl ?? null,
   };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("group_members")
     .update(updatePayload)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
-  if (!error) return true;
+  if (!error) {
+    console.log("メンバープロフィール更新完了", {
+      userId,
+      updatedCount: data?.length ?? 0,
+      avatarUrl,
+    });
+    return true;
+  }
 
   // avatar_url カラム未追加の環境でも表示名更新だけは成功させる
-  const { error: fallbackError } = await supabase
+  const { data: fallbackData, error: fallbackError } = await supabase
     .from("group_members")
     .update({ display_name: displayName })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
   if (fallbackError) {
     console.error("メンバープロフィール更新に失敗しました:", fallbackError);
     return false;
   }
 
+  console.warn("avatar_urlなしでメンバープロフィールを更新しました。avatar_urlカラム追加を確認してください。", {
+    userId,
+    updatedCount: fallbackData?.length ?? 0,
+  });
   return true;
 }
