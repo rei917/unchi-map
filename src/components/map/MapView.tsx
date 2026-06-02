@@ -103,42 +103,98 @@ export default function MapView({ center, currentPosition, records, currentUserI
   const toiletIcon = createToiletIcon();
   const currentLocationIcon = createCurrentLocationIcon();
 
-  // 重複または近接する座標をグルーピングして、同一位置に複数ピンがある場合は
-  // 小さく円状にずらして表示する
+  // 同じ場所・近い場所の複数ピンをグルーピングして、全員分を円状にずらして表示する
+  // DB上の lat/lng は変更せず、表示座標だけを調整する。
   const computeOffsetPositions = (recs: ToiletRecord[]) => {
-    // 座標をキーにグループ化（少数第6位で丸める）
-    const groups: Record<string, ToiletRecord[]> = {};
-    recs.forEach((r) => {
-      const key = `${r.lat.toFixed(6)}:${r.lng.toFixed(6)}`;
-      groups[key] = groups[key] || [];
-      groups[key].push(r);
+    type Cluster = {
+      centerLat: number;
+      centerLng: number;
+      items: ToiletRecord[];
+    };
+
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+    const distanceMeters = (
+      a: { lat: number; lng: number },
+      b: { lat: number; lng: number }
+    ) => {
+      const earthRadius = 6371000;
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const lat1 = toRad(a.lat);
+      const lat2 = toRad(b.lat);
+      const sinLat = Math.sin(dLat / 2);
+      const sinLng = Math.sin(dLng / 2);
+      const h =
+        sinLat * sinLat +
+        Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+      return 2 * earthRadius * Math.asin(Math.sqrt(h));
+    };
+
+    // GPSの微妙なブレでも「同じ場所」として扱う距離。
+    // 同じトイレ・同じ施設内の投稿をまとめて円状展開する。
+    const clusterThresholdMeters = 15;
+
+    const sorted = [...recs].sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      if (aTime !== bTime) return aTime - bTime;
+      return a.id.localeCompare(b.id);
+    });
+
+    const clusters: Cluster[] = [];
+
+    sorted.forEach((record) => {
+      const existing = clusters.find(
+        (cluster) =>
+          distanceMeters(
+            { lat: record.lat, lng: record.lng },
+            { lat: cluster.centerLat, lng: cluster.centerLng }
+          ) <= clusterThresholdMeters
+      );
+
+      if (existing) {
+        existing.items.push(record);
+        // クラスタ中心を平均値に更新して、全員分のピンが自然に広がるようにする
+        const count = existing.items.length;
+        existing.centerLat =
+          (existing.centerLat * (count - 1) + record.lat) / count;
+        existing.centerLng =
+          (existing.centerLng * (count - 1) + record.lng) / count;
+      } else {
+        clusters.push({
+          centerLat: record.lat,
+          centerLng: record.lng,
+          items: [record],
+        });
+      }
     });
 
     const result: Record<string, { lat: number; lng: number }> = {};
 
-    Object.keys(groups).forEach((key) => {
-      const items = groups[key];
+    clusters.forEach((cluster) => {
+      const items = cluster.items;
       if (items.length === 1) {
         result[items[0].id] = { lat: items[0].lat, lng: items[0].lng };
         return;
       }
 
-      // 並べる半径（メートル）。アイコンサイズに合わせて小さめにする
-      const baseRadiusMeters = 8; // 8m 程度
       const n = items.length;
+      // 件数が増えてもアイコンが重なりにくいように少しずつ半径を広げる
+      const radiusMeters = Math.min(28, 10 + n * 1.5);
 
       items.forEach((item, idx) => {
-        // 円周上に等間隔に配置
-        const angle = (2 * Math.PI * idx) / n;
-        const radius = baseRadiusMeters + (idx % 2) * 2; // 少しばらつかせる
+        const angle = (2 * Math.PI * idx) / n - Math.PI / 2;
+        const latOffset = (radiusMeters * Math.cos(angle)) / 111320;
+        const lngMetersPerDegree =
+          111320 * Math.cos((cluster.centerLat * Math.PI) / 180);
+        const lngOffset =
+          (radiusMeters * Math.sin(angle)) / (lngMetersPerDegree || 111320);
 
-        // 緯度1度あたりのメートル数は約111320m
-        const latOffset = (radius * Math.cos(angle)) / 111320;
-        // 経度のメートル換算は緯度によって変化する
-        const lngMetersPerDegree = 111320 * Math.cos((item.lat * Math.PI) / 180);
-        const lngOffset = (radius * Math.sin(angle)) / (lngMetersPerDegree || 111320);
-
-        result[item.id] = { lat: item.lat + latOffset, lng: item.lng + lngOffset };
+        result[item.id] = {
+          lat: cluster.centerLat + latOffset,
+          lng: cluster.centerLng + lngOffset,
+        };
       });
     });
 
