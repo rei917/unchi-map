@@ -1,18 +1,71 @@
 // ============================================================
 // app/login/page.tsx
 // ログインページ
+// サイト招待コード + Googleログイン + ゲスト参加
 // ============================================================
 
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { GUEST_USER_KEY } from "@/hooks/useCurrentUser";
+
+const SITE_INVITE_APPROVED_KEY = "unchi-map-site-invite-approved";
+const SITE_INVITE_CODE = process.env.NEXT_PUBLIC_SITE_INVITE_CODE ?? "UNCHI-7Q2M";
+
+function createGuestUser(displayName: string) {
+  const id = `guest_${crypto.randomUUID()}`;
+  const guestUser = {
+    id,
+    displayName,
+    createdAt: new Date().toISOString(),
+  };
+
+  localStorage.setItem(GUEST_USER_KEY, JSON.stringify(guestUser));
+  localStorage.setItem("unchi-map-display-name", displayName);
+}
 
 function LoginContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
   const error = searchParams.get("error");
+
+  const [inviteApproved, setInviteApproved] = useState(false);
+  const [inviteInput, setInviteInput] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [guestName, setGuestName] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setInviteApproved(localStorage.getItem(SITE_INVITE_APPROVED_KEY) === "true");
+  }, []);
+
+  const handleInviteSubmit = () => {
+    const input = inviteInput.trim().toUpperCase();
+    const expected = SITE_INVITE_CODE.trim().toUpperCase();
+
+    if (input !== expected) {
+      setInviteError("招待コードが違います");
+      return;
+    }
+
+    localStorage.setItem(SITE_INVITE_APPROVED_KEY, "true");
+    setInviteApproved(true);
+    setInviteError("");
+  };
+
+  const handleGuestJoin = () => {
+    const name = guestName.trim();
+    if (!name) {
+      setInviteError("ゲスト名を入力してください");
+      return;
+    }
+
+    createGuestUser(name);
+    router.replace(callbackUrl);
+  };
 
   return (
     <div className="login-page">
@@ -32,14 +85,54 @@ function LoginContent() {
           </div>
         )}
 
-        {/* Google ログインボタン */}
-        <button
-          className="google-signin-btn"
-          onClick={() => signIn("google", { callbackUrl })}
-        >
-          <GoogleIcon />
-          Google でログイン
-        </button>
+        {!inviteApproved ? (
+          <div className="invite-gate">
+            <p className="invite-gate-label">サイト招待コード</p>
+            <input
+              className="invite-gate-input"
+              value={inviteInput}
+              onChange={(e) => setInviteInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleInviteSubmit();
+              }}
+              placeholder="例: UNCHI-7Q2M"
+              autoCapitalize="characters"
+            />
+            {inviteError && <p className="invite-gate-error">{inviteError}</p>}
+            <button className="invite-gate-btn" onClick={handleInviteSubmit}>
+              参加する
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Google ログインボタン */}
+            <button
+              className="google-signin-btn"
+              onClick={() => signIn("google", { callbackUrl })}
+            >
+              <GoogleIcon />
+              Google でログイン
+            </button>
+
+            <div className="guest-join-box">
+              <div className="guest-divider">または</div>
+              <input
+                className="guest-name-input"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleGuestJoin();
+                }}
+                placeholder="ゲスト名"
+                maxLength={20}
+              />
+              <button className="guest-join-btn" onClick={handleGuestJoin}>
+                ゲストで参加
+              </button>
+              {inviteError && <p className="invite-gate-error">{inviteError}</p>}
+            </div>
+          </>
+        )}
 
         <p className="login-note">
           招待コードを持つ友達のみ参加できます

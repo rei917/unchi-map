@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "next-auth/react";
-import { CurrentUser } from "@/hooks/useCurrentUser";
+import { CurrentUser, GUEST_USER_KEY } from "@/hooks/useCurrentUser";
 
 type Props = {
   user: CurrentUser;
@@ -53,6 +53,17 @@ export default function UserMenu({ user, onUpdateName }: Props) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSaveName();
     if (e.key === "Escape") setEditing(false);
+  };
+
+  const handleSignOut = () => {
+    if (user.isGuest) {
+      localStorage.removeItem(GUEST_USER_KEY);
+      localStorage.removeItem("unchi-map-display-name");
+      window.location.href = "/login";
+      return;
+    }
+
+    signOut({ callbackUrl: "/login" });
   };
 
   return (
@@ -130,9 +141,9 @@ export default function UserMenu({ user, onUpdateName }: Props) {
           {/* ログアウト */}
           <button
             className="signout-btn"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={handleSignOut}
           >
-            🚪 ログアウト
+            {user.isGuest ? "🚪 ゲスト退出" : "🚪 ログアウト"}
           </button>
         </div>
       )}

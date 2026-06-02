@@ -879,3 +879,76 @@ body {
 .signout-btn:hover {
   background: #fff1f2;
 }
+
+
+/* ── サイト招待コード / ゲスト参加 ───────────────────── */
+.invite-gate,
+.guest-join-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.invite-gate-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.invite-gate-input,
+.guest-name-input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+  background: var(--color-surface-alt);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 12px 16px;
+  outline: none;
+}
+
+.invite-gate-input:focus,
+.guest-name-input:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.invite-gate-error {
+  font-size: 0.78rem;
+  color: var(--color-danger);
+  text-align: left;
+}
+
+.invite-gate-btn,
+.guest-join-btn {
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 13px 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+}
+
+.guest-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.guest-divider::before,
+.guest-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
