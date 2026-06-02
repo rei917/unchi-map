@@ -53,10 +53,10 @@ export default function HomePage() {
   const { center, position: currentPosition, error: geoError } = useGeolocation();
 
   // 記録データ
-  const { postRecord, getGroupRecords, removeRecord } = useRecords(user?.id ?? undefined, selectedGroupId);
+  const { records, postRecord, removeRecord } = useRecords(user?.id, selectedGroupId);
 
   // 現在のグループの記録
-  const groupRecords = getGroupRecords(selectedGroupId);
+  const groupRecords = records;
 
   /**
    * 記録を保存する
@@ -65,8 +65,7 @@ export default function HomePage() {
     (rating: number, comment: string) => {
       if (!user) return;
       postRecord({
-        // Convert my-records to empty string to store as personal record
-        groupId: selectedGroupId === "my-records" ? "" : selectedGroupId,
+        groupId: selectedGroupId === "my-records" ? undefined : selectedGroupId,
         userId: user.id,
         userName: user.displayName,
         lat: currentPosition?.lat ?? center.lat,

@@ -49,12 +49,75 @@ export async function loadRecords(): Promise<ToiletRecord[]> {
 }
 
 /**
+ * 現在のユーザーのマイ記録を Supabase から読み込む
+ */
+export async function loadMyRecords(userId: string): Promise<ToiletRecord[]> {
+  const { data, error } = await supabase.from("records").select("*").eq("user_id", userId);
+  if (error) {
+    console.error("マイ記録の読み込みに失敗しました:", error);
+    return [];
+  }
+  if (!data) return [];
+  return (data as SupabaseRecord[]).map(fromSupabaseRecord);
+}
+
+/**
+ * グループに紐づく記録を Supabase から読み込む
+ */
+export async function loadGroupRecords(groupId: string): Promise<ToiletRecord[]> {
+  const { data: recordGroups, error: rgErr } = await supabase
+    .from("record_groups")
+    .select("record_id")
+    .eq("group_id", groupId);
+
+  if (rgErr) {
+    console.error("record_groups の読み込みに失敗しました:", rgErr);
+    return [];
+  }
+
+  const legacy = await supabase.from("records").select("id").eq("group_id", groupId);
+  if (legacy.error) {
+    console.error("レガシー group_id の読み込みに失敗しました:", legacy.error);
+    return [];
+  }
+
+  const recordIds = [
+    ...(recordGroups?.map((item: any) => item.record_id) ?? []),
+    ...(legacy.data?.map((item: any) => item.id) ?? []),
+  ];
+
+  const uniqueIds = Array.from(new Set(recordIds));
+  if (uniqueIds.length === 0) return [];
+
+  const { data, error } = await supabase.from("records").select("*").in("id", uniqueIds);
+  if (error) {
+    console.error("グループ記録の読み込みに失敗しました:", error);
+    return [];
+  }
+  if (!data) return [];
+
+  return (data as SupabaseRecord[]).map(fromSupabaseRecord);
+}
+
+/**
  * 新しい記録を Supabase に追加する
  */
 export async function addRecord(record: ToiletRecord): Promise<ToiletRecord> {
+  const insertRecord = {
+    id: record.id,
+    user_id: record.userId,
+    user_name: record.userName,
+    group_id: "",
+    lat: record.lat,
+    lng: record.lng,
+    rating: record.rating,
+    memo: record.comment,
+    created_at: record.createdAt,
+  };
+
   const { data, error } = await supabase
     .from("records")
-    .insert([toSupabaseRecord(record)])
+    .insert([insertRecord])
     .select("*")
     .single();
 
@@ -64,6 +127,28 @@ export async function addRecord(record: ToiletRecord): Promise<ToiletRecord> {
   }
 
   return fromSupabaseRecord(data);
+}
+
+/**
+ * record_groups に record_id と group_id を追加する
+ */
+export async function assignRecordToGroup(recordId: string, groupId: string): Promise<boolean> {
+  const payload = {
+    id: crypto.randomUUID(),
+    record_id: recordId,
+    group_id: groupId,
+    created_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from("record_groups").insert([payload]);
+  if (error) {
+    if ((error as any).code === "23505") {
+      return true;
+    }
+    console.error("record_groups への追加に失敗しました:", error);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -227,12 +312,11 @@ export async function leaveGroup(userId: string, groupId: string): Promise<boole
  */
 export async function shareRecordsToGroup(userId: string, groupId: string): Promise<boolean> {
   try {
-    // ユーザーのマイ記録（group_id=""）を取得
+    // ユーザーの全記録を取得（マイ記録は user_id ベースの仮想ビューとして扱う）
     const { data: myRecords, error: fetchErr } = await supabase
       .from("records")
       .select("id")
-      .eq("user_id", userId)
-      .eq("group_id", "");
+      .eq("user_id", userId);
 
     if (fetchErr) {
       console.error("マイ記録の取得に失敗しました:", fetchErr);

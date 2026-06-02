@@ -6,11 +6,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ToiletRecord } from "@/types";
-import { loadRecords, addRecord, deleteRecord } from "@/lib/storage";
+import {
+  loadGroupRecords,
+  loadMyRecords,
+  addRecord,
+  assignRecordToGroup,
+  deleteRecord,
+} from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 
 type NewRecordInput = {
-  groupId: string;
+  groupId?: string;
   userId: string;
   userName: string;
   lat: number;
@@ -26,39 +32,68 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
   const [records, setRecords] = useState<ToiletRecord[]>([]);
 
   const fetchRecords = useCallback(async () => {
+    if (!selectedGroupId) {
+      setRecords([]);
+      return;
+    }
+
     try {
-      const loaded = await loadRecords();
+      let loaded: ToiletRecord[] = [];
+
+      if (selectedGroupId === "my-records") {
+        if (!currentUserId) {
+          setRecords([]);
+          return;
+        }
+        loaded = await loadMyRecords(currentUserId);
+      } else {
+        loaded = await loadGroupRecords(selectedGroupId);
+      }
+
       setRecords(loaded);
     } catch (error) {
       console.error("記録の読み込みに失敗しました:", error);
       setRecords([]);
     }
-  }, []);
+  }, [currentUserId, selectedGroupId]);
 
   // マウント時と selectedGroupId/currentUserId 変更時の読み込み
   useEffect(() => {
     void fetchRecords();
-  }, [fetchRecords, selectedGroupId, currentUserId]);
+  }, [fetchRecords]);
 
-  // Realtime subscription: refetch when records table changes for the current subscription filter
+  // Realtime subscription: refetch when relevant records or record_groups change
   useEffect(() => {
-    let filter: string | null = null;
+    if (!selectedGroupId) return;
+
+    const channel = supabase.channel(`records:${selectedGroupId}`);
+
     if (selectedGroupId === "my-records") {
       if (!currentUserId) return;
-      filter = `user_id=eq.${currentUserId}`;
+      const filter = `user_id=eq.${currentUserId}`;
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "records", filter },
+        async () => {
+          await fetchRecords();
+        }
+      );
     } else {
-      if (!selectedGroupId) return;
-      filter = `group_id=eq.${selectedGroupId}`;
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "records" },
+        async () => {
+          await fetchRecords();
+        }
+      );
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "record_groups", filter: `group_id=eq.${selectedGroupId}` },
+        async () => {
+          await fetchRecords();
+        }
+      );
     }
-
-    const channel = supabase.channel(`records:${filter}`);
-    channel.on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "records", filter },
-      async () => {
-        await fetchRecords();
-      }
-    );
 
     void channel.subscribe();
 
@@ -70,7 +105,7 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
         // ignore
       }
     };
-  }, [selectedGroupId, currentUserId, fetchRecords]);
+  }, [currentUserId, selectedGroupId, fetchRecords]);
 
   /**
    * 新規記録を追加する
@@ -79,7 +114,7 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
     async (input: NewRecordInput): Promise<ToiletRecord | null> => {
       const newRecord: ToiletRecord = {
         id: uuidv4(),
-        groupId: input.groupId,
+        groupId: "",
         userId: input.userId,
         userName: input.userName,
         lat: input.lat,
@@ -91,14 +126,35 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
 
       try {
         const inserted = await addRecord(newRecord);
-        setRecords((prev) => [...prev, inserted]);
+
+        if (input.groupId && input.groupId !== "my-records") {
+          const assigned = await assignRecordToGroup(inserted.id, input.groupId);
+          if (!assigned) {
+            try {
+              await deleteRecord(inserted.id);
+            } catch (rollbackError) {
+              console.error("レコードのロールバックに失敗しました:", rollbackError);
+            }
+            throw new Error("グループへのレコード共有に失敗しました");
+          }
+        }
+
+        const isCurrentView =
+          selectedGroupId === "my-records"
+            ? !input.groupId || input.groupId === "my-records"
+            : input.groupId === selectedGroupId;
+
+        if (isCurrentView) {
+          setRecords((prev) => [...prev, inserted]);
+        }
+
         return inserted;
       } catch (error) {
         console.error("記録の追加に失敗しました:", error);
         return null;
       }
     },
-    []
+    [selectedGroupId]
   );
 
   const removeRecord = useCallback(async (recordId: string) => {
@@ -110,19 +166,11 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
     }
   }, []);
 
-  /**
-   * 指定グループの記録のみ返す
-   */
   const getGroupRecords = useCallback(
     (groupId: string): ToiletRecord[] => {
-      // `my-records` は仮想グループとして扱い、現在のユーザーの投稿を返す
-      if (groupId === "my-records") {
-        if (!currentUserId) return [];
-        return records.filter((r) => r.userId === currentUserId);
-      }
-      return records.filter((r) => r.groupId === groupId);
+      return records;
     },
-    [records, currentUserId]
+    [records]
   );
 
   return { records, postRecord, getGroupRecords, removeRecord };
