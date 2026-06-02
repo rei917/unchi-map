@@ -11,6 +11,7 @@ import {
   loadMyRecords,
   addRecord,
   assignRecordToGroup,
+  getUserGroups,
   deleteRecord,
 } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
@@ -136,6 +137,19 @@ export function useRecords(currentUserId?: string, selectedGroupId?: string) {
               console.error("レコードのロールバックに失敗しました:", rollbackError);
             }
             throw new Error("グループへのレコード共有に失敗しました");
+          }
+        } else {
+          const joinedGroups = await getUserGroups(input.userId);
+          const groupIds = joinedGroups.map((g) => g.id);
+          if (groupIds.length > 0) {
+            await Promise.all(
+              groupIds.map(async (groupId) => {
+                const assigned = await assignRecordToGroup(inserted.id, groupId);
+                if (!assigned) {
+                  console.warn("マイ記録のグループ共有に失敗しました", { groupId, recordId: inserted.id });
+                }
+              })
+            );
           }
         }
 
