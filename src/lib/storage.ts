@@ -3,7 +3,7 @@
 // Supabase への読み書きユーティリティ
 // ============================================================
 
-import { ToiletRecord, SupabaseRecord, Group } from "@/types";
+import { ToiletRecord, SupabaseRecord, Group, GroupMember } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { generateInviteCode } from "@/lib/invite";
 
@@ -173,7 +173,7 @@ export async function deleteRecord(recordId: string): Promise<void> {
 /**
  * Create a group and register the creating user as a member
  */
-export async function createGroup(name: string, createdBy: string, displayName?: string): Promise<Group> {
+export async function createGroup(name: string, createdBy: string, displayName?: string, avatarUrl?: string | null): Promise<Group> {
   const id = crypto.randomUUID();
   const inviteCode = generateInviteCode();
   const groupRow = {
@@ -196,13 +196,19 @@ export async function createGroup(name: string, createdBy: string, displayName?:
     group_id: created.id,
     user_id: createdBy,
     display_name: displayName ?? "",
+    avatar_url: avatarUrl ?? null,
     joined_at: new Date().toISOString(),
   };
 
   const { error: memberErr } = await supabase.from("group_members").insert([memberRow]);
   if (memberErr) {
-    console.error("グループメンバー登録に失敗しました:", memberErr);
-    // Not throwing here because group was created, but caller may want to handle
+    // avatar_url カラム未追加の環境でも壊れないようにフォールバック
+    const fallbackRow = { ...memberRow } as any;
+    delete fallbackRow.avatar_url;
+    const { error: fallbackErr } = await supabase.from("group_members").insert([fallbackRow]);
+    if (fallbackErr) {
+      console.error("グループメンバー登録に失敗しました:", fallbackErr);
+    }
   }
 
   return {
@@ -215,7 +221,7 @@ export async function createGroup(name: string, createdBy: string, displayName?:
 /**
  * Join a group by invite code (case-insensitive). Returns group ID if joined or already member, null if failed.
  */
-export async function joinGroupByInviteCode(inviteCode: string, userId: string, displayName?: string): Promise<string | null> {
+export async function joinGroupByInviteCode(inviteCode: string, userId: string, displayName?: string, avatarUrl?: string | null): Promise<string | null> {
   const code = inviteCode.trim();
   if (!code) return null;
 
@@ -243,13 +249,20 @@ export async function joinGroupByInviteCode(inviteCode: string, userId: string, 
     group_id: group.id,
     user_id: userId,
     display_name: displayName ?? "",
+    avatar_url: avatarUrl ?? null,
     joined_at: new Date().toISOString(),
   };
 
   const { error: insertErr } = await supabase.from("group_members").insert([memberRow]);
   if (insertErr) {
-    console.error("メンバー追加に失敗しました:", insertErr);
-    return null;
+    // avatar_url カラム未追加の環境でも壊れないようにフォールバック
+    const fallbackRow = { ...memberRow } as any;
+    delete fallbackRow.avatar_url;
+    const { error: fallbackErr } = await supabase.from("group_members").insert([fallbackRow]);
+    if (fallbackErr) {
+      console.error("メンバー追加に失敗しました:", fallbackErr);
+      return null;
+    }
   }
   return group.id; // グループIDを返す
 }
@@ -360,4 +373,71 @@ export async function shareRecordsToGroup(userId: string, groupId: string): Prom
     console.error("マイ記録共有処理でエラーが発生しました:", error);
     return false;
   }
+}
+
+
+/**
+ * グループメンバー一覧を取得する
+ */
+export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
+  const mapRow = (row: any): GroupMember => ({
+    id: row.id,
+    groupId: row.group_id,
+    userId: row.user_id,
+    displayName: row.display_name || row.user_id || "名無しさん",
+    avatarUrl: row.avatar_url ?? null,
+    joinedAt: row.joined_at,
+  });
+
+  const { data, error } = await supabase
+    .from("group_members")
+    .select("id, group_id, user_id, display_name, avatar_url, joined_at")
+    .eq("group_id", groupId)
+    .order("joined_at", { ascending: true });
+
+  if (!error && data) return data.map(mapRow);
+
+  // avatar_url カラムをまだ追加していない場合のフォールバック
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from("group_members")
+    .select("id, group_id, user_id, display_name, joined_at")
+    .eq("group_id", groupId)
+    .order("joined_at", { ascending: true });
+
+  if (fallbackError) {
+    console.error("グループメンバー取得に失敗しました:", fallbackError);
+    return [];
+  }
+
+  return (fallbackData ?? []).map(mapRow);
+}
+
+/**
+ * 現在ユーザーの全所属グループに、表示名・画像URLを反映する
+ */
+export async function updateUserMembershipProfile(userId: string, displayName: string, avatarUrl?: string | null): Promise<boolean> {
+  const updatePayload = {
+    display_name: displayName,
+    avatar_url: avatarUrl ?? null,
+  };
+
+  const { error } = await supabase
+    .from("group_members")
+    .update(updatePayload)
+    .eq("user_id", userId);
+
+  if (!error) return true;
+
+  // avatar_url カラム未追加の環境でも表示名更新だけは成功させる
+  const { error: fallbackError } = await supabase
+    .from("group_members")
+    .update({ display_name: displayName })
+    .eq("user_id", userId);
+
+  if (fallbackError) {
+    console.error("メンバープロフィール更新に失敗しました:", fallbackError);
+    return false;
+  }
+
+  return true;
 }

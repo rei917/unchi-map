@@ -1,8 +1,12 @@
-
 "use client";
 import { useEffect, useState } from "react";
 import { Group } from "@/types";
-import { createGroup as dbCreateGroup, joinGroupByInviteCode, getUserGroups, leaveGroup as dbLeaveGroup } from "@/lib/storage";
+import {
+  createGroup as dbCreateGroup,
+  joinGroupByInviteCode,
+  getUserGroups,
+  leaveGroup as dbLeaveGroup,
+} from "@/lib/storage";
 
 const personal: Group = {
   id: "my-records",
@@ -11,7 +15,7 @@ const personal: Group = {
   isPersonal: true,
 };
 
-export function useGroups(currentUserId?: string) {
+export function useGroups(currentUserId?: string, displayName?: string, avatarUrl?: string | null) {
   const [groups, setGroups] = useState<Group[]>([personal]);
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export function useGroups(currentUserId?: string) {
   const createGroup = async (name: string) => {
     if (!currentUserId) return;
     try {
-      const g = await dbCreateGroup(name, currentUserId);
+      const g = await dbCreateGroup(name, currentUserId, displayName, avatarUrl);
       setGroups((prev) => [...prev, g]);
     } catch (e) {
       console.error("グループ作成に失敗しました:", e);
@@ -45,7 +49,7 @@ export function useGroups(currentUserId?: string) {
   const joinGroup = async (inviteCode: string): Promise<string | null> => {
     if (!currentUserId) return null;
     try {
-      const groupId = await joinGroupByInviteCode(inviteCode, currentUserId);
+      const groupId = await joinGroupByInviteCode(inviteCode, currentUserId, displayName, avatarUrl);
       if (groupId) {
         const userGroups = await getUserGroups(currentUserId);
         setGroups([personal, ...userGroups]);

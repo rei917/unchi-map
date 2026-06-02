@@ -1,13 +1,14 @@
 // ============================================================
 // hooks/useCurrentUser.ts
 // 現在のユーザー情報を管理するフック
-// Google セッション + ゲストユーザー + 表示名を統合
+// Google セッション + ゲストユーザー + 表示名 + カスタム画像を統合
 // ============================================================
 
 import { useSession } from "next-auth/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 
 const DISPLAY_NAME_KEY_PREFIX = "unchi-map-display-name";
+const CUSTOM_IMAGE_KEY_PREFIX = "unchi-map-custom-image";
 export const GUEST_USER_KEY = "unchi-map-guest-user";
 
 export type CurrentUser = {
@@ -17,8 +18,10 @@ export type CurrentUser = {
   displayName: string;
   /** Google アカウントの本名 */
   googleName: string | null;
-  /** アバター画像URL */
+  /** アバター画像URL。カスタム画像があればそちらを優先 */
   image: string | null;
+  /** Google本来のアバター画像URL */
+  googleImage: string | null;
   /** メールアドレス */
   email: string | null;
   /** ゲストユーザーかどうか */
@@ -28,6 +31,7 @@ export type CurrentUser = {
 type StoredGuestUser = {
   id: string;
   displayName: string;
+  image?: string | null;
   createdAt: string;
 };
 
@@ -36,6 +40,8 @@ type UseCurrentUserReturn = {
   isLoading: boolean;
   /** 表示名を変更して localStorage に保存 */
   updateDisplayName: (name: string) => void;
+  /** カスタム画像URLを変更して localStorage に保存 */
+  updateImage: (imageUrl: string | null) => void;
 };
 
 function readGuestUser(): StoredGuestUser | null {
@@ -56,6 +62,10 @@ function getDisplayNameKey(userId: string) {
   return `${DISPLAY_NAME_KEY_PREFIX}:${userId}`;
 }
 
+function getCustomImageKey(userId: string) {
+  return `${CUSTOM_IMAGE_KEY_PREFIX}:${userId}`;
+}
+
 function readDisplayName(userId: string): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(getDisplayNameKey(userId)) ?? "";
@@ -66,6 +76,21 @@ function writeDisplayName(userId: string, name: string) {
   localStorage.setItem(getDisplayNameKey(userId), name);
 }
 
+function readCustomImage(userId: string): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(getCustomImageKey(userId)) ?? "";
+}
+
+function writeCustomImage(userId: string, imageUrl: string | null) {
+  if (typeof window === "undefined") return;
+  const key = getCustomImageKey(userId);
+  if (!imageUrl) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, imageUrl);
+}
+
 /**
  * 現在のログインユーザーを返すフック。
  * GoogleログインがあればGoogleを優先し、未ログインならゲストユーザーを返す。
@@ -73,6 +98,7 @@ function writeDisplayName(userId: string, name: string) {
 export function useCurrentUser(): UseCurrentUserReturn {
   const { data: session, status } = useSession();
   const [displayName, setDisplayName] = useState<string>("");
+  const [customImage, setCustomImage] = useState<string>("");
   const [guestUser, setGuestUser] = useState<StoredGuestUser | null>(null);
   const [localLoaded, setLocalLoaded] = useState(false);
 
@@ -89,13 +115,20 @@ export function useCurrentUser(): UseCurrentUserReturn {
     setLocalLoaded(true);
   }, []);
 
-  // Googleログイン時はGoogleユーザー専用の表示名を読む。
-  // ゲスト名がGoogleログイン後に流用されないよう、ユーザーID別キーに保存する。
+  // Googleログイン時はGoogleユーザー専用の表示名/画像を読む。
+  // ゲスト情報がGoogleログイン後に流用されないよう、ユーザーID別キーに保存する。
   useEffect(() => {
     if (!googleUserId) return;
-    const saved = readDisplayName(googleUserId);
-    setDisplayName(saved);
+    setDisplayName(readDisplayName(googleUserId));
+    setCustomImage(readCustomImage(googleUserId));
   }, [googleUserId]);
+
+  // ゲスト利用時はゲストユーザー専用の表示名/画像を読む。
+  useEffect(() => {
+    if (googleUserId || !guestUser?.id) return;
+    setDisplayName(readDisplayName(guestUser.id));
+    setCustomImage(readCustomImage(guestUser.id) || guestUser.image || "");
+  }, [googleUserId, guestUser?.id, guestUser?.image]);
 
   const currentUserId = googleUserId ?? guestUser?.id ?? null;
 
@@ -117,36 +150,58 @@ export function useCurrentUser(): UseCurrentUserReturn {
     }
   }, [currentUserId, googleUserId]);
 
+  const updateImage = useCallback((imageUrl: string | null) => {
+    if (!currentUserId) return;
+    const normalized = imageUrl?.trim() || null;
+
+    setCustomImage(normalized ?? "");
+    writeCustomImage(currentUserId, normalized);
+
+    // ゲスト利用中はゲスト情報にも反映する
+    if (!googleUserId) {
+      const guest = readGuestUser();
+      if (guest) {
+        const updated = { ...guest, image: normalized };
+        localStorage.setItem(GUEST_USER_KEY, JSON.stringify(updated));
+        setGuestUser(updated);
+      }
+    }
+  }, [currentUserId, googleUserId]);
+
   if (status === "loading" || !localLoaded) {
-    return { user: null, isLoading: true, updateDisplayName };
+    return { user: null, isLoading: true, updateDisplayName, updateImage };
   }
 
   if (session?.user && googleUserId) {
+    const image = customImage || session.user.image || null;
     const user: CurrentUser = {
       id: googleUserId,
       displayName: displayName || session.user.name || "名無しさん",
       googleName: session.user.name ?? null,
-      image: session.user.image ?? null,
+      image,
+      googleImage: session.user.image ?? null,
       email: session.user.email ?? null,
       isGuest: false,
     };
 
-    return { user, isLoading: false, updateDisplayName };
+    return { user, isLoading: false, updateDisplayName, updateImage };
   }
 
   if (guestUser) {
     const guestDisplayName = displayName || readDisplayName(guestUser.id) || guestUser.displayName;
+    const image = customImage || readCustomImage(guestUser.id) || guestUser.image || null;
     const user: CurrentUser = {
       id: guestUser.id,
       displayName: guestDisplayName,
       googleName: null,
-      image: null,
+      image,
+      googleImage: null,
       email: null,
       isGuest: true,
     };
 
-    return { user, isLoading: false, updateDisplayName };
+    return { user, isLoading: false, updateDisplayName, updateImage };
   }
 
-  return { user: null, isLoading: false, updateDisplayName };
+  return { user: null, isLoading: false, updateDisplayName, updateImage };
 }

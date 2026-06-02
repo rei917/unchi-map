@@ -50,11 +50,24 @@ export type Group = {
 };
 
 /**
+ * グループメンバーの型
+ */
+export type GroupMember = {
+  id?: string;
+  groupId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  joinedAt?: string;
+};
+
+/**
  * ユーザーの型
  */
 export type User = {
   id: string;
   name: string;
+  image?: string | null;
 };
 
 /**

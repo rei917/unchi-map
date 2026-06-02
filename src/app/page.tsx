@@ -16,7 +16,8 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useRecords } from "@/hooks/useRecords";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useGroups } from "@/hooks/useGroups";
-import { shareRecordsToGroup } from "@/lib/storage";
+import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { shareRecordsToGroup, updateUserMembershipProfile } from "@/lib/storage";
 
 // Leaflet は SSR 非対応なので動的インポートで回避
 const MapView = dynamic(() => import("@/components/map/MapView"), {
@@ -32,7 +33,7 @@ export default function HomePage() {
   const router = useRouter();
 
   // 認証状態
-  const { user, isLoading: authLoading, updateDisplayName } 
+  const { user, isLoading: authLoading, updateDisplayName, updateImage } 
   = useCurrentUser();
   const toast = useToast();
 
@@ -43,8 +44,9 @@ export default function HomePage() {
     }
   }, [authLoading, user, router]);
 
-  const { groups, createGroup, joinGroup, leaveGroup } = useGroups(user?.id);
+  const { groups, createGroup, joinGroup, leaveGroup } = useGroups(user?.id, user?.displayName, user?.image);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("my-records");
+  const { members, isLoading: membersLoading, refetch: refetchMembers } = useGroupMembers(selectedGroupId);
 
   // 投稿モーダルの開閉
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -87,6 +89,20 @@ export default function HomePage() {
     );
   }
 
+  const handleUpdateName = (name: string) => {
+    updateDisplayName(name);
+    void updateUserMembershipProfile(user.id, name, user.image).then(() => {
+      void refetchMembers();
+    });
+  };
+
+  const handleUpdateImage = (imageUrl: string | null) => {
+    updateImage(imageUrl);
+    void updateUserMembershipProfile(user.id, user.displayName, imageUrl).then(() => {
+      void refetchMembers();
+    });
+  };
+
   return (
     <div className="app-container">
       {/* ヘッダー */}
@@ -95,8 +111,11 @@ export default function HomePage() {
         selectedGroupId={selectedGroupId}
         onGroupChange={setSelectedGroupId}
         user={user}
-        onUpdateName={updateDisplayName}
-        onCreateGroup={(name) => { void createGroup(name); }}
+        members={members}
+        membersLoading={membersLoading}
+        onUpdateName={handleUpdateName}
+        onUpdateImage={handleUpdateImage}
+        onCreateGroup={(name) => { void createGroup(name).then(() => refetchMembers()); }}
         onJoinGroup={(code) => {
           // joinGroup is async; handle result and notify user
           (async () => {
@@ -107,6 +126,7 @@ export default function HomePage() {
               toast.showToast("グループに参加しました", "success");
               
               // グループ参加後、過去のマイ記録を共有するか確認
+              await refetchMembers();
               if (user && window.confirm("これまでのマイ記録もこのグループに共有しますか？")) {
                 const shared = await shareRecordsToGroup(user.id, groupId);
                 if (shared) {
@@ -123,6 +143,7 @@ export default function HomePage() {
             const ok = await leaveGroup(groupId);
             if (ok) {
               setSelectedGroupId("my-records");
+              await refetchMembers();
               toast.showToast("グループを脱退しました", "success");
             } else {
               toast.showToast("グループ脱退に失敗しました", "error");
