@@ -29,6 +29,23 @@ function getMemberInitial(name: string) {
   return (name || "?").trim().charAt(0) || "?";
 }
 
+function getMemberDisplayName(member: GroupMember, currentUser: CurrentUser | null) {
+  if (currentUser && member.userId === currentUser.id) {
+    return currentUser.displayName;
+  }
+
+  const name = (member.displayName || "").trim();
+  if (!name || name === member.userId) return "名無しさん";
+  return name;
+}
+
+function getMemberAvatarUrl(member: GroupMember, currentUser: CurrentUser | null) {
+  if (currentUser && member.userId === currentUser.id) {
+    return currentUser.image ?? member.avatarUrl ?? null;
+  }
+  return member.avatarUrl ?? null;
+}
+
 export default function Header({
   groups,
   selectedGroupId,
@@ -100,17 +117,22 @@ export default function Header({
                   <div className="members-empty">メンバーがいません</div>
                 ) : (
                   <ul className="members-list">
-                    {members.map((member) => (
-                      <li key={`${member.groupId}:${member.userId}`} className="member-item">
-                        {member.avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={member.avatarUrl} alt="" className="member-avatar" />
-                        ) : (
-                          <span className="member-avatar-fallback">{getMemberInitial(member.displayName)}</span>
-                        )}
-                        <span className="member-name">{member.displayName}</span>
-                      </li>
-                    ))}
+                    {members.map((member) => {
+                      const memberName = getMemberDisplayName(member, user);
+                      const memberAvatarUrl = getMemberAvatarUrl(member, user);
+
+                      return (
+                        <li key={`${member.groupId}:${member.userId}`} className="member-item">
+                          {memberAvatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={memberAvatarUrl} alt="" className="member-avatar" />
+                          ) : (
+                            <span className="member-avatar-fallback">{getMemberInitial(memberName)}</span>
+                          )}
+                          <span className="member-name" title={memberName}>{memberName}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

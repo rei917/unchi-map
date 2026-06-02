@@ -35,6 +35,48 @@ function toSupabaseRecord(record: ToiletRecord) {
   };
 }
 
+
+
+/**
+ * ローカル画像ファイルを Supabase Storage の avatars バケットへアップロードする。
+ * バケットは Public bucket として作成しておくこと。
+ */
+export async function uploadAvatarFile(userId: string, file: File): Promise<string | null> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("画像ファイルを選択してください");
+  }
+
+  // 身内向けでも巨大画像は避ける。必要なら上限は調整可。
+  const maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    throw new Error("画像サイズは5MB以下にしてください");
+  }
+
+  const rawExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const ext = rawExt.replace(/[^a-z0-9]/g, "") || "jpg";
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filePath = `${safeUserId}/avatar-${Date.now()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from("avatars")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+      contentType: file.type,
+    });
+
+  if (error) {
+    console.error("アバター画像アップロードに失敗しました:", error);
+    throw new Error(error.message);
+  }
+
+  const { data } = supabase.storage
+    .from("avatars")
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
+
 /**
  * 全記録を Supabase から読み込む
  */
@@ -378,29 +420,78 @@ export async function shareRecordsToGroup(userId: string, groupId: string): Prom
 
 /**
  * グループメンバー一覧を取得する
+ * display_name が未保存/ID表示になっている古いメンバーは、
+ * records.user_name から表示名を補完する。
  */
 export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
-  const mapRow = (row: any): GroupMember => ({
-    id: row.id,
-    groupId: row.group_id,
-    userId: row.user_id,
-    displayName: row.display_name || row.user_id || "名無しさん",
-    avatarUrl: row.avatar_url ?? null,
-    joinedAt: row.joined_at,
-  });
+  const selectWithAvatar = "id, group_id, user_id, display_name, avatar_url, joined_at";
+  const selectFallback = "id, group_id, user_id, display_name, joined_at";
+
+  const normalizeName = (displayName: string | null | undefined, userId: string) => {
+    const name = (displayName ?? "").trim();
+    if (!name) return "";
+    // 過去データで display_name に user_id が入っている場合は補完対象にする
+    if (name === userId) return "";
+    return name;
+  };
+
+  const mapRows = async (rows: any[], hasAvatar: boolean): Promise<GroupMember[]> => {
+    const members = rows.map((row: any) => ({
+      id: row.id,
+      groupId: row.group_id,
+      userId: row.user_id,
+      displayName: normalizeName(row.display_name, row.user_id),
+      avatarUrl: hasAvatar ? (row.avatar_url ?? null) : null,
+      joinedAt: row.joined_at,
+    }));
+
+    const needsNameUserIds = members
+      .filter((member) => !member.displayName)
+      .map((member) => member.userId);
+
+    if (needsNameUserIds.length > 0) {
+      const uniqueUserIds = Array.from(new Set(needsNameUserIds));
+      const { data: recordNames, error: recordNameError } = await supabase
+        .from("records")
+        .select("user_id, user_name, created_at")
+        .in("user_id", uniqueUserIds)
+        .order("created_at", { ascending: false });
+
+      if (!recordNameError && recordNames) {
+        const nameMap = new Map<string, string>();
+        for (const row of recordNames as any[]) {
+          const userName = (row.user_name ?? "").trim();
+          if (userName && !nameMap.has(row.user_id)) {
+            nameMap.set(row.user_id, userName);
+          }
+        }
+
+        for (const member of members) {
+          if (!member.displayName) {
+            member.displayName = nameMap.get(member.userId) ?? "名無しさん";
+          }
+        }
+      }
+    }
+
+    return members.map((member) => ({
+      ...member,
+      displayName: member.displayName || "名無しさん",
+    }));
+  };
 
   const { data, error } = await supabase
     .from("group_members")
-    .select("id, group_id, user_id, display_name, avatar_url, joined_at")
+    .select(selectWithAvatar)
     .eq("group_id", groupId)
     .order("joined_at", { ascending: true });
 
-  if (!error && data) return data.map(mapRow);
+  if (!error && data) return mapRows(data, true);
 
   // avatar_url カラムをまだ追加していない場合のフォールバック
   const { data: fallbackData, error: fallbackError } = await supabase
     .from("group_members")
-    .select("id, group_id, user_id, display_name, joined_at")
+    .select(selectFallback)
     .eq("group_id", groupId)
     .order("joined_at", { ascending: true });
 
@@ -409,7 +500,7 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
     return [];
   }
 
-  return (fallbackData ?? []).map(mapRow);
+  return mapRows(fallbackData ?? [], false);
 }
 
 /**

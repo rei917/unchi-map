@@ -9,6 +9,7 @@
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { CurrentUser, GUEST_USER_KEY } from "@/hooks/useCurrentUser";
+import { uploadAvatarFile } from "@/lib/storage";
 
 type Props = {
   user: CurrentUser;
@@ -25,7 +26,7 @@ export default function UserMenu({ user, onUpdateName, onUpdateImage }: Props) {
   const [editing, setEditing] = useState(false);
   const [editingImage, setEditingImage] = useState(false);
   const [nameInput, setNameInput] = useState(user.displayName);
-  const [imageInput, setImageInput] = useState(user.image ?? "");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,11 +52,6 @@ export default function UserMenu({ user, onUpdateName, onUpdateImage }: Props) {
     }
   }, [editing, user.displayName]);
 
-  useEffect(() => {
-    if (editingImage) {
-      setImageInput(user.image ?? "");
-    }
-  }, [editingImage, user.image]);
 
   const handleSaveName = () => {
     if (nameInput.trim()) {
@@ -64,14 +60,25 @@ export default function UserMenu({ user, onUpdateName, onUpdateImage }: Props) {
     setEditing(false);
   };
 
-  const handleSaveImage = () => {
-    const trimmed = imageInput.trim();
-    onUpdateImage(trimmed || null);
-    setEditingImage(false);
+  const handleAvatarFileChange = async (file: File | null) => {
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      const publicUrl = await uploadAvatarFile(user.id, file);
+      if (publicUrl) {
+        onUpdateImage(publicUrl);
+        setEditingImage(false);
+      }
+    } catch (error) {
+      console.error("画像アップロードに失敗しました:", error);
+      alert(error instanceof Error ? error.message : "画像アップロードに失敗しました");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleResetImage = () => {
-    setImageInput("");
     onUpdateImage(null);
     setEditingImage(false);
   };
@@ -81,10 +88,6 @@ export default function UserMenu({ user, onUpdateName, onUpdateImage }: Props) {
     if (e.key === "Escape") setEditing(false);
   };
 
-  const handleImageKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSaveImage();
-    if (e.key === "Escape") setEditingImage(false);
-  };
 
   const handleSignOut = () => {
     if (user.isGuest) {
@@ -178,18 +181,27 @@ export default function UserMenu({ user, onUpdateName, onUpdateImage }: Props) {
             <p className="dropdown-section-label">画像</p>
             {editingImage ? (
               <div className="name-edit-row">
-                <input
-                  className="name-input"
-                  value={imageInput}
-                  onChange={(e) => setImageInput(e.target.value)}
-                  onKeyDown={handleImageKeyDown}
-                  placeholder="画像URLを入力"
-                />
-                <button className="name-save-btn" onClick={handleSaveImage}>
-                  画像を保存
-                </button>
-                <button className="image-reset-btn" onClick={handleResetImage}>
-                  画像をリセット
+                <label className="avatar-file-label">
+                  <span>{uploadingImage ? "アップロード中..." : "端末から画像を選ぶ"}</span>
+                  <input
+                    className="avatar-file-input"
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      void handleAvatarFileChange(file);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {user.image && (
+                  <button className="image-reset-btn" onClick={handleResetImage} disabled={uploadingImage}>
+                    画像をリセット
+                  </button>
+                )}
+                <button className="image-reset-btn" onClick={() => setEditingImage(false)} disabled={uploadingImage}>
+                  キャンセル
                 </button>
               </div>
             ) : (
