@@ -52,6 +52,23 @@ export default function HomePage() {
   // 投稿モーダルの開閉
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
+  // ログイン/ゲストユーザー情報が確定したら、
+  // 既存のgroup_members行へ表示名・画像を自動同期する。
+  // 過去にdisplay_name/avatar_urlが空で作られたメンバー行も補正される。
+  useEffect(() => {
+    if (!user) return;
+
+    void updateUserMembershipProfile(user.id, user.displayName, user.image).then((ok) => {
+      if (!ok) {
+        console.warn("メンバープロフィール自動同期に失敗しました");
+        return;
+      }
+
+      void refetchMembers();
+      setMemberProfileVersion((v) => v + 1);
+    });
+  }, [user?.id, user?.displayName, user?.image, refetchMembers]);
+
   // 位置情報
   const { center, position: currentPosition, error: geoError } = useGeolocation();
 
