@@ -17,7 +17,7 @@ import { useRecords } from "@/hooks/useRecords";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useGroups } from "@/hooks/useGroups";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
-import { shareRecordsToGroup, updateUserMembershipProfile } from "@/lib/storage";
+import { shareRecordsToGroup, updateUserMembershipProfile, updateUserRecordNames } from "@/lib/storage";
 
 // Leaflet は SSR 非対応なので動的インポートで回避
 const MapView = dynamic(() => import("@/components/map/MapView"), {
@@ -109,9 +109,23 @@ export default function HomePage() {
 
   const handleUpdateName = (name: string) => {
     updateDisplayName(name);
-    void updateUserMembershipProfile(user.id, name, user.image).then(() => {
-      void refetchMembers();
-    });
+
+    void (async () => {
+      const [membershipOk, recordsOk] = await Promise.all([
+        updateUserMembershipProfile(user.id, name, user.image),
+        updateUserRecordNames(user.id, name),
+      ]);
+
+      await refetchMembers();
+
+      if (membershipOk && recordsOk) {
+        toast.showToast("表示名を更新しました", "success");
+      } else if (!recordsOk) {
+        toast.showToast("表示名は変更しましたが、過去ピンの投稿者名更新に失敗しました", "error");
+      } else {
+        toast.showToast("表示名は変更しましたが、メンバー名更新に失敗しました", "error");
+      }
+    })();
   };
 
   const handleUpdateImage = (imageUrl: string | null) => {

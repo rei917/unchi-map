@@ -504,6 +504,31 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
 }
 
 /**
+ * ユーザーの過去記録に保存されている投稿者名を現在の表示名へ更新する。
+ * これにより、過去に打ったピンの投稿者名も最新名で表示される。
+ */
+export async function updateUserRecordNames(userId: string, displayName: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("records")
+    .update({ user_name: displayName })
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) {
+    console.error("過去記録の投稿者名更新に失敗しました:", error);
+    return false;
+  }
+
+  console.log("過去記録の投稿者名を更新しました", {
+    userId,
+    updatedCount: data?.length ?? 0,
+  });
+
+  return true;
+}
+
+
+/**
  * 現在ユーザーの全所属グループに、表示名・画像URLを反映する
  */
 export async function updateUserMembershipProfile(userId: string, displayName: string, avatarUrl?: string | null): Promise<boolean> {
