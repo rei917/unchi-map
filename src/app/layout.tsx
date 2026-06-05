@@ -10,6 +10,7 @@ import "leaflet/dist/leaflet.css";
 import AuthSessionProvider from "@/components/providers/SessionProvider";
 import ToastProvider from "@/components/ui/ToastProvider";
 import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 
 export const metadata: Metadata = {
   title: "🚽 うんちマップ β",
@@ -49,6 +50,7 @@ export default function RootLayout({
           <ToastProvider>
             <ServiceWorkerRegister />
             {children}
+            <InstallPrompt />
           </ToastProvider>
         </AuthSessionProvider>
       </body>

@@ -1164,3 +1164,151 @@ body {
     min-height: 100dvh;
   }
 }
+
+
+/* ── v27_fix: モバイルPWAインストール案内 ───────────── */
+.install-prompt {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  z-index: 2600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 12px 12px 12px 14px;
+  backdrop-filter: blur(8px);
+}
+
+.install-prompt-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.install-prompt-title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.install-prompt-subtitle {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.install-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.install-prompt-button {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 9px 14px;
+  cursor: pointer;
+}
+
+.install-prompt-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.install-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(61, 43, 26, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.install-guide-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 22px 20px;
+  color: var(--color-text-primary);
+}
+
+.install-guide-card h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin-bottom: 14px;
+}
+
+.install-guide-card ol {
+  padding-left: 22px;
+  margin-bottom: 12px;
+}
+
+.install-guide-card li {
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.install-guide-card p {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 16px;
+}
+
+.install-guide-ok,
+.install-guide-dont-show {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.install-guide-ok {
+  padding: 12px 16px;
+  color: #fff;
+  background: var(--color-primary);
+  margin-bottom: 8px;
+}
+
+.install-guide-dont-show {
+  padding: 10px 16px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border: 1.5px solid var(--color-border);
+}
+
+@media (min-width: 769px) {
+  .install-prompt,
+  .install-guide-overlay {
+    display: none;
+  }
+}
