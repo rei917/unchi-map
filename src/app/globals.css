@@ -1153,3 +1153,14 @@ body {
     font-size: 0.82rem;
   }
 }
+
+/* ── v27: PWA standalone補助 ───────────────────────────── */
+@media (display-mode: standalone) {
+  body {
+    background: var(--color-bg);
+  }
+
+  .app-container {
+    min-height: 100dvh;
+  }
+}

@@ -9,10 +9,24 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import AuthSessionProvider from "@/components/providers/SessionProvider";
 import ToastProvider from "@/components/ui/ToastProvider";
+import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
   title: "🚽 うんちマップ β",
   description: "友人同士で共有するトイレ記録SNS",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "うんちマップ",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -32,7 +46,10 @@ export default function RootLayout({
     <html lang="ja">
       <body>
         <AuthSessionProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <ServiceWorkerRegister />
+            {children}
+          </ToastProvider>
         </AuthSessionProvider>
       </body>
     </html>
