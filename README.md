@@ -1,68 +1,36 @@
-# 🚽 うんちマップ β
+# うんちマップ
 
-友人同士で共有する招待制の位置情報SNS。
-トイレを利用した場所を地図上に記録し、グループ内で共有できます。
+身内でトイレ記録を共有するマップアプリです。
 
-## セットアップ
+## 主な機能
 
-```bash
-cd unchi-map
-npm install
-npm run dev
-```
+- サイト招待コード
+- Googleログイン
+- ゲスト参加
+- グループ作成
+- 招待コードでグループ参加
+- グループ脱退
+- 地図上に記録ピン追加
+- 記録削除
+- 同じ場所の複数ピンずらし表示
+- Supabase保存
+- Realtime同期
+- メンバー一覧
+- プロフィール画像変更
+- PWA対応
 
-ブラウザで http://localhost:3000 を開いてください。
+## リリース前確認
 
-## フォルダ構成
+`RELEASE_CHECKLIST.md` を確認してください。
 
-```
-src/
-├── app/
-│   ├── layout.tsx        # ルートレイアウト
-│   ├── page.tsx          # メインページ
-│   └── globals.css       # グローバルスタイル
-├── components/
-│   ├── map/
-│   │   ├── MapView.tsx      # Leaflet 地図コンポーネント
-│   │   └── RecordPopup.tsx  # ピン押下時ポップアップ
-│   ├── modals/
-│   │   └── PostModal.tsx    # 記録投稿モーダル
-│   └── ui/
-│       ├── Header.tsx       # ヘッダー・グループ切替
-│       ├── PostButton.tsx   # 「記録する」ボタン
-│       └── StarRating.tsx   # 星評価コンポーネント
-├── hooks/
-│   ├── useGeolocation.ts   # 現在地取得フック
-│   └── useRecords.ts       # 記録データ管理フック
-├── lib/
-│   └── storage.ts          # localStorage ユーティリティ
-├── data/
-│   └── mockData.ts         # モックデータ・定数
-└── types/
-    └── index.ts            # 型定義
-```
+## 変更履歴
 
-## 技術スタック
+`CHANGELOG.md` を確認してください。
 
-- **Next.js 14** (App Router)
-- **React 18** + **TypeScript**
-- **Leaflet** + **react-leaflet** (地図)
-- **OpenStreetMap** (タイル)
-- **localStorage** (データ保存)
+## Supabase
 
-## MVP 機能
+リリース前のSupabase整理は以下を確認してください。
 
-- [x] 現在地取得（Geolocation API）
-- [x] 全画面地図表示（OpenStreetMap）
-- [x] グループ切替（モック）
-- [x] トイレ記録の投稿（快適度・コメント）
-- [x] ピン表示・ポップアップ
-- [x] localStorage 保存・永続化
+- `supabase/V26_RELEASE_LITE_POLICIES.sql`
+- `supabase/V26_STRICT_RLS_FUTURE_PLAN.md`
 
-## 将来実装予定
-
-- [ ] Google ログイン
-- [ ] Supabase への移行
-- [ ] 招待リンク参加
-- [ ] 写真添付
-- [ ] ヒートマップ
