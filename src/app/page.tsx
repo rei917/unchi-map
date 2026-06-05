@@ -75,8 +75,28 @@ export default function HomePage() {
   // 記録データ
   const { records, postRecord, removeRecord } = useRecords(user?.id, selectedGroupId);
 
-  // 現在のグループの記録
-  const groupRecords = records;
+  // ピン表示用の投稿者名を現在のプロフィール情報から解決する。
+  // records.user_name は投稿時点のスナップショットなので、表示には直接使わない。
+  const displayRecords = records.map((record) => {
+    if (user && record.userId === user.id) {
+      return {
+        ...record,
+        userName: user.displayName,
+      };
+    }
+
+    const member = members.find((m) => m.userId === record.userId);
+    const memberName = member?.displayName?.trim();
+
+    if (memberName && memberName !== record.userId) {
+      return {
+        ...record,
+        userName: memberName,
+      };
+    }
+
+    return record;
+  });
 
   /**
    * 記録を保存する
@@ -210,7 +230,7 @@ export default function HomePage() {
         <MapView
           center={center}
           currentPosition={currentPosition}
-          records={groupRecords}
+          records={displayRecords}
           currentUserId={user.id}
           onDeleteRecord={(recordId) => {
             removeRecord(recordId);
